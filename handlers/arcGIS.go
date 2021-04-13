@@ -6,11 +6,9 @@ import (
     "encoding/json"
     "fmt"
     "github.com/grokify/html-strip-tags-go"
-
     "github.com/lambda-platform/lambda/DB"
     "github.com/lambda-platform/arcGIS/models"
     "github.com/labstack/echo/v4"
-    //"go/token"
     "io/ioutil"
     "net/http"
     "net/url"
@@ -19,8 +17,271 @@ import (
     "strconv"
     "strings"
     "time"
-    //"github.com/hetiansu5/urlquery"
 )
+
+
+func FillArcGISData (c echo.Context, GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) error {
+
+    var connections []models.ArcgisConnection
+    var result []models.FillResult
+    DB.DB.Find(&connections)
+    for _, connectionPre := range connections{
+        fmt.Println(connectionPre.LocalForm)
+
+        var connection Connection
+
+        json.Unmarshal([]byte(connectionPre.Connection), &connection)
+
+        _, _, table, _, _, Identity := GetGridMODEL(strconv.Itoa(connectionPre.LocalGrid))
+        rows := []models.GISROW{}
+        DB.DB.Table(table).Select(fmt.Sprintf("%s as id, %s as object_id", Identity, connection.ObjectIdField)).Where(connection.ObjectIdField + " <= ?", 0).Or(connection.ObjectIdField+ " IS NULL").Find(&rows);
+
+
+        for _, row := range rows{
+            IdentityForm, Model := GetMODEL(strconv.Itoa(connectionPre.LocalForm))
+
+
+
+
+            DB.DB.Where(IdentityForm+" = ?", row.ID).Find(Model)
+
+            data := make(map[string]interface{})
+            dataPre, _ := json.Marshal(Model)
+            json.Unmarshal(dataPre, &data)
+
+
+
+            ArcGISSaveAction(data, connection, connectionPre, Model, Identity, strconv.Itoa(row.ID), table)
+        }
+
+
+        result = append(result, models.FillResult{
+            Layer: connectionPre.Title,
+            Count: len(rows),
+        })
+        //return c.JSON(http.StatusOK, result)
+    }
+    return c.JSON(http.StatusOK, result)
+}
+func ArcGISSaveAction(data map[string]interface{}, connection Connection, connectionPre models.ArcgisConnection, Model interface{}, Identity string, rowId string, table string)  map[string]interface{} {
+
+
+
+
+    objectIDSTRING := fmt.Sprintf("%v", data[connection.ObjectIdField])
+
+    objectID, _ := strconv.ParseInt(objectIDSTRING, 10, 64)
+
+    attributes := ""
+
+    if(data != nil){
+        geoData := data[connection.GeoJsonField].(string)
+
+        if geoData != "" {
+            for _, attribute := range connection.Connections {
+
+                //fmt.Println(attribute["attribute"])
+
+                if data[attribute["field"]] != nil {
+
+                    fieldValue := ""
+                    if reflect.TypeOf(data[attribute["field"]]).String() == "time.Time" {
+                        fieldValue = "\"" + reflect.ValueOf(data[attribute["field"]]).Interface().(time.Time).Format("2006-01-02") + "\""
+
+                    } else if reflect.TypeOf(data[attribute["field"]]).String() == "float64" {
+
+                        fieldValue = fmt.Sprintf("%.8f", data[attribute["field"]])
+
+                    }else if reflect.TypeOf(data[attribute["field"]]).String() == "float32" {
+
+                        fieldValue = fmt.Sprintf("%.8f", data[attribute["field"]])
+
+                    } else if reflect.TypeOf(data[attribute["field"]]).String() == "string" {
+
+                        var re = regexp.MustCompile(`"`)
+                        fieldValue = re.ReplaceAllString(reflect.ValueOf(data[attribute["field"]]).Interface().(string), `\"`)
+
+                        fieldValue = strip.StripTags(fieldValue)
+                        fieldValue = "\"" + fieldValue + "\""
+
+                    } else {
+                        fieldValue = "\"" + fmt.Sprintf("%v", data[attribute["field"]]) + "\""
+                    }
+                    var re = regexp.MustCompile(`\r?\n`)
+                    fieldValue = re.ReplaceAllString(fieldValue, `\n`)
+
+                    if attribute["attribute"] == "coord_z" {
+
+                        if fieldValue == "" || fieldValue == "\""+"\"" {
+                            fieldValue = "0"
+                        }
+
+                    }
+                    if fieldValue == "" {
+                        fieldValue = "\"" + "\""
+                    }
+
+                    if attributes == "" {
+
+                        attributes = "\"" + attribute["attribute"] + "\"" + ":" + fieldValue
+                    } else {
+
+                        attributes = attributes + "," + "\"" + attribute["attribute"] + "\"" + ":" + fieldValue
+                    }
+                }
+
+            }
+
+            if objectID >= 1 {
+                if attributes == "" {
+                    attributes = "\"OBJECTID\":" + fmt.Sprintf("%v", objectID)
+                } else {
+                    attributes = attributes + ",\"OBJECTID\":" + fmt.Sprintf("%v", objectID)
+                }
+            }
+
+            if connection.LayerType == "Point" {
+
+                var coordinate Coordinate
+
+                json.Unmarshal([]byte(geoData), &coordinate)
+
+                err := json.Unmarshal([]byte(geoData), &coordinate)
+                if err != nil {
+                    fmt.Println(err.Error())
+                }
+
+                if coordinate.Lat == "" {
+
+                    var coordinate CoordinateFloat
+                    err2 := json.Unmarshal([]byte(geoData), &coordinate)
+                    if err2 != nil {
+                        return data
+                    }
+
+                    features := ""
+                    if data["coord_z"] != nil {
+                        if data["coord_z"] == "" || data["coord_z"] == nil {
+                            data["coord_z"] = 0
+                        }
+                        if _, err := strconv.ParseInt(fmt.Sprintf("%v", data["coord_z"]),10,64); err != nil {
+                            data["coord_z"] = 0
+                        }
+                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), fmt.Sprintf("%v", data["coord_z"]), attributes)
+                    } else {
+                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":0,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), attributes)
+                    }
+
+                    layers := []string{}
+                    json.Unmarshal([]byte(connectionPre.Layer), &layers)
+
+                    if len(layers) >= 1 {
+
+                        layer_url := layers[len(layers)-1]
+                        objectIDNew := SaveArcGIS(layer_url, features, objectID)
+
+                        if objectIDNew >= 1 {
+                            //data[connection.ObjectIdField] = objectIDNew
+                            //data_, _ := json.Marshal(data)
+                            //json.Unmarshal(data_, Model)
+                            dataGIS := map[string]interface{}{}
+                            dataGIS[connection.ObjectIdField] = objectIDNew
+                            DB.DB.Table(table).Where(Identity+" = ?", rowId).Update(dataGIS)
+
+                        }
+                    }
+                } else {
+
+                    features := ""
+                    if data["coord_z"] != nil {
+                        if data["coord_z"] == "" || data["coord_z"] == nil {
+                            data["coord_z"] = 0
+                        }
+                        if _, err := strconv.ParseInt(fmt.Sprintf("%v", data["coord_z"]),10,64); err != nil {
+                            data["coord_z"] = 0
+                        }
+                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), fmt.Sprintf("%v", data["coord_z"]), attributes)
+                    } else {
+                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":0\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), attributes)
+                    }
+
+                    layers := []string{}
+                    json.Unmarshal([]byte(connectionPre.Layer), &layers)
+
+                    if len(layers) >= 1 {
+
+                        layer_url := layers[len(layers)-1]
+                        objectIDNew := SaveArcGIS(layer_url, features, objectID)
+
+                        if objectIDNew >= 1 {
+                            dataGIS := map[string]interface{}{}
+                            dataGIS[connection.ObjectIdField] = objectIDNew
+                            DB.DB.Table(table).Where(Identity+" = ?", rowId).Update(dataGIS)
+
+                        }
+                    }
+                }
+
+            } else if connection.LayerType == "Polygon" || connection.LayerType == "Line" {
+                var geoJson GeoJSon
+
+                err := json.Unmarshal([]byte(geoData), &geoJson)
+                if err != nil {
+                    return data
+                }
+                if len(geoJson.Features) >= 1 {
+                    rings := [][][]float64{}
+                    checkRings := []string{}
+                    for _, geoElement := range geoJson.Features{
+
+                        preString, _ := json.Marshal(geoElement.Geometry.Coordinates[0]);
+                        _, found := Find(checkRings, string(preString))
+                        if(!found){
+                            rings = append(rings, geoElement.Geometry.Coordinates[0])
+                            checkRings = append(checkRings, string(preString))
+                        }
+
+                    }
+                    Coordinates, _ := json.Marshal(rings)
+
+
+
+                    features := fmt.Sprintf("[{\"geometry\":{\"rings\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", string(Coordinates), attributes)
+
+                    layers := []string{}
+                    json.Unmarshal([]byte(connectionPre.Layer), &layers)
+
+                    if len(layers) >= 1 {
+
+                        layer_url := layers[len(layers)-1]
+                        objectIDNew := SaveArcGIS(layer_url, features, objectID)
+
+                        if objectIDNew >= 1 {
+                            dataGIS := map[string]interface{}{}
+                            dataGIS[connection.ObjectIdField] = objectIDNew
+                            DB.DB.Table(table).Where(Identity+" = ?", rowId).Update(dataGIS)
+
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+
+
+
+    return data
+
+}
+func Find(slice []string, val string) (int, bool) {
+    for i, item := range slice {
+        if item == val {
+            return i, true
+        }
+    }
+    return -1, false
+}
 
 func SAVEGIS(rawData []byte, schemaId int64, action string, rowId string, GetMODEL func(schema_id string) (string, interface{})) {
 
@@ -116,177 +377,7 @@ func ArcGISAfterSave(data map[string]interface{}, schemaId int64, Model interfac
 
             json.Unmarshal([]byte(connectionPre.Connection), &connection)
 
-            objectIDSTRING := fmt.Sprintf("%v", data[connection.ObjectIdField])
-
-            objectID, _ := strconv.ParseInt(objectIDSTRING, 10, 64)
-
-            attributes := ""
-
-            geoData := data[connection.GeoJsonField].(string)
-
-            if geoData != "" {
-                for _, attribute := range connection.Connections {
-
-                    //fmt.Println(attribute["attribute"])
-
-                    if data[attribute["field"]] != nil {
-
-                        fieldValue := ""
-                        if reflect.TypeOf(data[attribute["field"]]).String() == "time.Time" {
-                            fieldValue = "\"" + reflect.ValueOf(data[attribute["field"]]).Interface().(time.Time).Format("2006-01-02") + "\""
-
-                        } else if reflect.TypeOf(data[attribute["field"]]).String() == "float64" {
-
-                            fieldValue = fmt.Sprintf("%.0f", data[attribute["field"]])
-
-                        } else if reflect.TypeOf(data[attribute["field"]]).String() == "string" {
-
-                            var re = regexp.MustCompile(`"`)
-                            fieldValue = re.ReplaceAllString(reflect.ValueOf(data[attribute["field"]]).Interface().(string), `\"`)
-
-                            fieldValue = strip.StripTags(fieldValue)
-                            fieldValue = "\"" + fieldValue + "\""
-
-                        } else {
-                            fieldValue = "\"" + fmt.Sprintf("%v", data[attribute["field"]]) + "\""
-                        }
-                        var re = regexp.MustCompile(`\r?\n`)
-                        fieldValue = re.ReplaceAllString(fieldValue, `\n`)
-
-                        if attribute["attribute"] == "coord_z" {
-
-                            if fieldValue == "" || fieldValue == "\""+"\"" {
-                                fieldValue = "0"
-                            }
-
-                        }
-                        if fieldValue == "" {
-                            fieldValue = "\"" + "\""
-                        }
-
-                        if attributes == "" {
-
-                            attributes = "\"" + attribute["attribute"] + "\"" + ":" + fieldValue
-                        } else {
-
-                            attributes = attributes + "," + "\"" + attribute["attribute"] + "\"" + ":" + fieldValue
-                        }
-                    }
-
-                }
-
-                if objectID >= 1 {
-                    if attributes == "" {
-                        attributes = "\"OBJECTID\":" + fmt.Sprintf("%v", objectID)
-                    } else {
-                        attributes = attributes + ",\"OBJECTID\":" + fmt.Sprintf("%v", objectID)
-                    }
-                }
-
-                if connection.LayerType == "Point" {
-
-                    var coordinate Coordinate
-
-                    json.Unmarshal([]byte(geoData), &coordinate)
-
-                    err := json.Unmarshal([]byte(geoData), &coordinate)
-                    if err != nil {
-                        fmt.Println(err.Error())
-                    }
-
-                    if coordinate.Lat == "" {
-
-                        var coordinate CoordinateFloat
-                        err2 := json.Unmarshal([]byte(geoData), &coordinate)
-                        if err2 != nil {
-                            return data
-                        }
-
-                        features := ""
-                        if data["coord_z"] != nil {
-                            if data["coord_z"] == "" || data["coord_z"] == nil {
-                                data["coord_z"] = 0
-                            }
-                            features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), fmt.Sprintf("%v", data["coord_z"]), attributes)
-                        } else {
-                            features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), attributes)
-                        }
-
-                        layers := []string{}
-                        json.Unmarshal([]byte(connectionPre.Layer), &layers)
-
-                        if len(layers) >= 1 {
-
-                            layer_url := layers[len(layers)-1]
-                            objectIDNew := SaveArcGIS(layer_url, features, objectID)
-
-                            if objectIDNew >= 1 {
-                                //data[connection.ObjectIdField] = objectIDNew
-                                //data_, _ := json.Marshal(data)
-                                //json.Unmarshal(data_, Model)
-                                dataGIS := map[string]interface{}{}
-                                dataGIS[connection.ObjectIdField] = objectIDNew
-                                DB.DB.Table(table).Where(Identity+" = ?", rowId).Update(dataGIS)
-
-                            }
-                        }
-                    } else {
-
-                        features := ""
-                        if data["coord_z"] != nil {
-                            features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), fmt.Sprintf("%v", data["coord_z"]), attributes)
-                        } else {
-                            features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), attributes)
-                        }
-
-                        layers := []string{}
-                        json.Unmarshal([]byte(connectionPre.Layer), &layers)
-
-                        if len(layers) >= 1 {
-
-                            layer_url := layers[len(layers)-1]
-                            objectIDNew := SaveArcGIS(layer_url, features, objectID)
-
-                            if objectIDNew >= 1 {
-                                dataGIS := map[string]interface{}{}
-                                dataGIS[connection.ObjectIdField] = objectIDNew
-                                DB.DB.Table(table).Where(Identity+" = ?", rowId).Update(dataGIS)
-
-                            }
-                        }
-                    }
-
-                } else if connection.LayerType == "Polygon" || connection.LayerType == "Line" {
-                    var geoJson GeoJSon
-
-                    err := json.Unmarshal([]byte(geoData), &geoJson)
-                    if err != nil {
-                        return data
-                    }
-                    if len(geoJson.Features) >= 1 {
-                        Coordinates, _ := json.Marshal(geoJson.Features[0].Geometry.Coordinates)
-
-                        features := fmt.Sprintf("[{\"geometry\":{\"rings\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", string(Coordinates), attributes)
-
-                        layers := []string{}
-                        json.Unmarshal([]byte(connectionPre.Layer), &layers)
-
-                        if len(layers) >= 1 {
-
-                            layer_url := layers[len(layers)-1]
-                            objectIDNew := SaveArcGIS(layer_url, features, objectID)
-
-                            if objectIDNew >= 1 {
-                                dataGIS := map[string]interface{}{}
-                                dataGIS[connection.ObjectIdField] = objectIDNew
-                                DB.DB.Table(table).Where(Identity+" = ?", rowId).Update(dataGIS)
-
-                            }
-                        }
-                    }
-
-                }
-            }
+           return ArcGISSaveAction(data, connection, connectionPre, Model, Identity, rowId, table)
 
         }
     }
@@ -335,6 +426,9 @@ func ArcGISAfterDelete(Model interface{}, data []map[string]interface{}, id stri
 }
 func GetArcGISTokenForBackEnd() models.ArcGisResponse {
 
+
+
+
     url := "https://gismap.mris.mn/arcgis/tokens/generateToken"
 
     payload := strings.NewReader("username=geosystem&password=geosystem2020&client=requestip&f=json&expiration=120")
@@ -379,6 +473,8 @@ func SaveArcGIS(reQuestUrl string, features string, objectID int64) int64 {
 
     }
 
+    fmt.Println(features)
+    //sendData := fmt.Sprintf("%s=%s&f=pjson&token=%s", action, url.QueryEscape(features), "4bTnpNQ8yD7OHh8mzWT_IFM9LMgv2-h_ZxRjZRCLSQPH17_MgcsTsnUAujF4Hnwo")
     sendData := fmt.Sprintf("%s=%s&f=pjson&token=%s", action, features, token.Token)
     req, _ := http.NewRequest("POST", reQuestUrl, bytes.NewBufferString(sendData))
 
