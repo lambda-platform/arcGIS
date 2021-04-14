@@ -473,7 +473,7 @@ func SaveArcGIS(reQuestUrl string, features string, objectID int64) int64 {
 
     }
 
-    fmt.Println(features)
+    //fmt.Println(features)
     //sendData := fmt.Sprintf("%s=%s&f=pjson&token=%s", action, url.QueryEscape(features), "4bTnpNQ8yD7OHh8mzWT_IFM9LMgv2-h_ZxRjZRCLSQPH17_MgcsTsnUAujF4Hnwo")
     sendData := fmt.Sprintf("%s=%s&f=pjson&token=%s", action, features, token.Token)
     req, _ := http.NewRequest("POST", reQuestUrl, bytes.NewBufferString(sendData))
