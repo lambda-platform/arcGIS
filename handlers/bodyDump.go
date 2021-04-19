@@ -14,6 +14,9 @@ type crudResponse struct {
 func BodyDump(c echo.Context, reqBody, resBody []byte, GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) {
 
 	action := c.Param("action")
+	if(c.Path() == "/lambda/krud/delete/:schemaId/:id"){
+		action = "delete"
+	}
 	if(action == "store" || action == "update" || action == "delete" || action == "edit"){
 		RowId := ""
 		schemaId, _ := strconv.ParseInt(c.Param("schemaId"), 10, 64)
