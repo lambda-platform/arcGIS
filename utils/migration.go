@@ -5,7 +5,7 @@ import (
 	"github.com/lambda-platform/lambda/DB"
 	"github.com/lambda-platform/lambda/config"
 	arcGISModels "github.com/lambda-platform/arcGIS/models"
-	puzzleModels "github.com/lambda-platform/lambda/DB/DBSchema/models"
+    puzzleModels "github.com/lambda-platform/lambda/models"
 	"os"
 	"fmt"
 )
@@ -21,7 +21,11 @@ func AutoMigrateSeed() {
 		if len(vbs) <= 0 {
 			AbsolutePath := AbsolutePath()
 			db.AutoMigrate(
-				&arcGISModels.ArcgisConnection{},
+				&arcGISModels.GISConnection{},
+				&arcGISModels.GISBaseMaps{},
+				&arcGISModels.GISCategory{},
+				&arcGISModels.GISLayers{},
+				&arcGISModels.GISLegends{},
 			)
 			var vbs2 []puzzleModels.VBSchema
 

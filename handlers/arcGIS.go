@@ -22,7 +22,7 @@ import (
 
 func FillArcGISData (c echo.Context, GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) error {
 
-    var connections []models.ArcgisConnection
+    var connections []models.GISConnection
     var result []models.FillResult
     DB.DB.Find(&connections)
     for _, connectionPre := range connections{
@@ -63,7 +63,10 @@ func FillArcGISData (c echo.Context, GetMODEL func(schema_id string) (string, in
     }
     return c.JSON(http.StatusOK, result)
 }
-func ArcGISSaveAction(data map[string]interface{}, connection Connection, connectionPre models.ArcgisConnection, Model interface{}, Identity string, rowId string, table string)  map[string]interface{} {
+func isNil(v interface{}) bool {
+    return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+}
+func ArcGISSaveAction(data map[string]interface{}, connection Connection, connectionPre models.GISConnection, Model interface{}, Identity string, rowId string, table string)  map[string]interface{} {
 
 
 
@@ -74,7 +77,7 @@ func ArcGISSaveAction(data map[string]interface{}, connection Connection, connec
 
     attributes := ""
 
-    if(data != nil){
+    if(isNil(data[connection.GeoJsonField]) == false){
         geoData := data[connection.GeoJsonField].(string)
 
         if geoData != "" {
@@ -368,7 +371,7 @@ func ArcGISAfterSave(data map[string]interface{}, schemaId int64, Model interfac
 
         formID := schemaId
 
-        var connectionPre models.ArcgisConnection
+        var connectionPre models.GISConnection
         DB.DB.Where("local_form = ?", formID).Find(&connectionPre)
 
         if connectionPre.Connection != "" {
@@ -387,7 +390,7 @@ func ArcGISAfterSave(data map[string]interface{}, schemaId int64, Model interfac
 }
 func ArcGISAfterDelete(Model interface{}, data []map[string]interface{}, id string, gridID string, Identity string) []map[string]interface{} {
 
-    var connectionPre models.ArcgisConnection
+    var connectionPre models.GISConnection
     DB.DB.Where("local_grid = ?", gridID).Find(&connectionPre)
 
     if connectionPre.Connection != "" {
@@ -446,6 +449,111 @@ func GetArcGISTokenForBackEnd() models.ArcGisResponse {
     json.Unmarshal(body, &response)
 
     return response
+}
+
+
+func (a *GISCategory) CategoryAfterInsert(data map[string]interface{}, id string, Model interface{}) map[string]interface{} {
+
+    GenerateGISDATA()
+
+
+
+    return data
+
+}
+func GenerateGISDATA(){
+    categories := []GISCategory{}
+    baseMaps := []models.GISBaseMaps{}
+
+
+    DB.DB.Order("menu_order").Where("active = ?", 1).Find(&categories)
+    DB.DB.Find(&baseMaps)
+
+
+    for i, _ := range categories{
+        Children := []GISLayers{}
+        DB.DB.Where("category_id = ?", categories[i].ID).Where("active = ?", 1).Order("layer_order").Find(&Children)
+
+        for c, _ := range Children{
+            Legends := []models.GISLegends{}
+            DB.DB.Where("layer_id = ?", Children[c].ID).Find(&Legends)
+            Children[c].Legends = Legends
+
+            layerUrl := []string{}
+
+
+            json.Unmarshal([]byte(Children[c].LayerURL), &layerUrl)
+
+            Children[c].LayerURL = layerUrl[len(layerUrl) -1]
+        }
+        categories[i].Children = Children
+    }
+
+    geoData := map[string]interface{}{
+        "baseMaps":baseMaps,
+        "categories":categories,
+    }
+
+    file, _ := json.MarshalIndent(geoData, "", " ")
+
+    _ = ioutil.WriteFile("public/GIS/GISDATA.json", file, 0755)
+
+
+    fmt.Println("SAVED")
+}
+
+func (a *GISCategory) CategoryAfterDelete(Model interface{}, data []map[string]interface{}, id string) []map[string]interface{} {
+
+    GenerateGISDATA()
+
+    return data
+
+}
+
+
+
+type GISCategory struct {
+    Active     int        `gorm:"column:active" json:"active"`
+    CreatedAt  *time.Time `gorm:"column:created_at" json:"created_at"`
+    Icon       string     `gorm:"column:icon" json:"icon"`
+    ID         int        `gorm:"column:id;primary_key" json:"id"`
+    LayerOrder int        `gorm:"column:layer_order" json:"layer_order"`
+    MenuOrder  int        `gorm:"column:menu_order" json:"menu_order"`
+    Name       string     `gorm:"column:name" json:"name"`
+    Show       int        `gorm:"column:show" json:"show"`
+    UpdatedAt  *time.Time `gorm:"column:updated_at" json:"updated_at"`
+    Children []GISLayers `json:"children"`
+}
+
+func (a *GISCategory) TableName() string {
+    return "gis_category"
+}
+
+
+type GISLayers struct {
+    Active       int        `gorm:"column:active" json:"active"`
+    CategoryID   int        `gorm:"column:category_id" json:"category_id"`
+    CheckInluded int        `gorm:"column:check_inluded" json:"check_inluded"`
+    CreatedAt    *time.Time `gorm:"column:created_at" json:"created_at"`
+    Export       int        `gorm:"column:export" json:"export"`
+    ID           int        `gorm:"column:id;primary_key" json:"id"`
+    InfoTemplate string     `gorm:"column:info_template" json:"info_template"`
+    LayerOrder   int        `gorm:"column:layer_order" json:"layer_order"`
+    LayerType    string     `gorm:"column:layer_type" json:"layer_type"`
+    LayerURL     string     `gorm:"column:layer_url" json:"layer_url"`
+    MenuOrder    int        `gorm:"column:menu_order" json:"menu_order"`
+    Name         string     `gorm:"column:name" json:"name"`
+    PopupFields  string     `gorm:"column:popup_fields" json:"popup_fields"`
+    SearchFields string     `gorm:"column:search_fields" json:"search_fields"`
+    SearchInfo   string     `gorm:"column:search_info" json:"search_info"`
+    Show         int        `gorm:"column:show" json:"show"`
+    StyleField   string     `gorm:"column:style_field" json:"style_field"`
+    UpdatedAt    *time.Time `gorm:"column:updated_at" json:"updated_at"`
+    Legends []models.GISLegends `json:"legends"`
+}
+
+func (a *GISLayers) TableName() string {
+    return "gis_layers"
 }
 
 type Adds struct {
