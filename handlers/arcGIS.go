@@ -12,14 +12,62 @@ import (
     "io/ioutil"
     "net/http"
     "net/url"
+    "os"
     "reflect"
     "regexp"
     "strconv"
     "strings"
     "time"
+
 )
 
 
+func Token (c echo.Context) error {
+
+    token := GetArcGISToken()
+
+
+    configFile, err := os.Open("public/GIS/GISDATA.json")
+    defer configFile.Close()
+    byteValue, _ := ioutil.ReadAll(configFile)
+    if err != nil{
+        fmt.Println("GISDATA.json CONFIG FILE NOT FOUND")
+    }
+    return c.JSON(http.StatusOK, map[string]interface{}{
+        "token":token,
+        "GISDATA":string(byteValue),
+    })
+}
+func GetArcGISToken() models.ArcGisResponse {
+
+    //referer := "http://103.87.255.139/"
+    referer := "http://localhost/"
+
+    url := "http://103.87.255.139:6080/arcgis/tokens/generateToken"
+
+    payload := strings.NewReader("username=siteadmin&password=pass#123&client=referer&referer="+referer+"&f=json&expiration=120")
+    //payload := strings.NewReader("username=siteadmin&password=pass#123&client=requestip&f=json&expiration=120")
+
+    req, _ := http.NewRequest("POST", url, payload)
+
+    req.Header.Add("content-type", "application/x-www-form-urlencoded")
+
+    res, _ := http.DefaultClient.Do(req)
+
+    defer res.Body.Close()
+    body, _ := ioutil.ReadAll(res.Body)
+
+
+
+
+    response := models.ArcGisResponse{}
+    json.Unmarshal(body, &response)
+
+
+
+
+    return response
+}
 func FillArcGISData (c echo.Context, GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) error {
 
     var connections []models.GISConnection
@@ -432,9 +480,9 @@ func GetArcGISTokenForBackEnd() models.ArcGisResponse {
 
 
 
-    url := "https://gismap.mris.mn/arcgis/tokens/generateToken"
+    url := "http://103.87.255.139/arcgis/tokens/generateToken"
 
-    payload := strings.NewReader("username=geosystem&password=geosystem2020&client=requestip&f=json&expiration=120")
+    payload := strings.NewReader("username=siteadmin&password=pass#123&client=requestip&f=json&expiration=120")
 
     req, _ := http.NewRequest("POST", url, payload)
 

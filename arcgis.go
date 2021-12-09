@@ -1,9 +1,9 @@
 package arcGIS
 
 import (
+    //"github.com/lambda-platform/agent/agentMW"
     "github.com/lambda-platform/arcGIS/handlers"
     "github.com/lambda-platform/arcGIS/utils"
-    //"lambda/modules/agent/agentMW"
     "github.com/labstack/echo/v4"
     "github.com/labstack/echo/v4/middleware"
     vpUtils "github.com/lambda-platform/lambda/config"
@@ -19,6 +19,7 @@ func Set(e *echo.Echo, GetMODEL func(schema_id string) (string, interface{}), Ge
     g.GET("/fill", func(c echo.Context) error {
         return handlers.FillArcGISData(c, GetMODEL ,GetGridMODEL)
     })
+    g.GET("/token", handlers.Token)
 
 	g.POST("/form-fields", handlers.FormFields)
 

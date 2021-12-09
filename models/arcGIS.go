@@ -52,7 +52,7 @@ type GISLayers struct {
     CreatedAt    *time.Time `gorm:"column:created_at" json:"created_at"`
     Export       int        `gorm:"column:export" json:"export"`
     ID           int        `gorm:"column:id;primary_key" json:"id"`
-    InfoTemplate string     `gorm:"column:info_template" json:"info_template"`
+    InfoTemplate string     `gorm:"column:info_template;type:TEXT" json:"info_template"`
     LayerOrder   int        `gorm:"column:layer_order" json:"layer_order"`
     LayerType    string     `gorm:"column:layer_type" json:"layer_type"`
     LayerURL     string     `gorm:"column:layer_url" json:"layer_url"`
