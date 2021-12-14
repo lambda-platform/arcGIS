@@ -195,33 +195,36 @@ func ArcGISSaveAction(data map[string]interface{}, connection Connection, connec
 
                 var coordinate Coordinate
 
+
                 json.Unmarshal([]byte(geoData), &coordinate)
 
                 err := json.Unmarshal([]byte(geoData), &coordinate)
+
                 if err != nil {
-                    fmt.Println(err.Error())
-                }
 
-                if coordinate.Lat == "" {
-
-                    var coordinate CoordinateFloat
-                    err2 := json.Unmarshal([]byte(geoData), &coordinate)
+                    var coordinateFloat CoordinateFloat
+                    err2 := json.Unmarshal([]byte(geoData), &coordinateFloat)
                     if err2 != nil {
                         return data
                     }
 
+
+
                     features := ""
                     if data["coord_z"] != nil {
+
                         if data["coord_z"] == "" || data["coord_z"] == nil {
                             data["coord_z"] = 0
                         }
                         if _, err := strconv.ParseInt(fmt.Sprintf("%v", data["coord_z"]),10,64); err != nil {
                             data["coord_z"] = 0
                         }
-                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), fmt.Sprintf("%v", data["coord_z"]), attributes)
+                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinateFloat.Lng), fmt.Sprintf("%v", coordinateFloat.Lat), fmt.Sprintf("%v", data["coord_z"]), attributes)
                     } else {
-                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"z\":0,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinate.Lng), fmt.Sprintf("%v", coordinate.Lat), attributes)
+                        features = fmt.Sprintf("[{\"geometry\":{\"x\":%v,\"y\":%v,\"spatialReference\":{\"wkid\":4326}},\"attributes\":{%v}}]", fmt.Sprintf("%v", coordinateFloat.Lng), fmt.Sprintf("%v", coordinateFloat.Lat), attributes)
                     }
+
+
 
                     layers := []string{}
                     json.Unmarshal([]byte(connectionPre.Layer), &layers)
