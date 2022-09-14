@@ -1,36 +1,35 @@
 package arcGIS
 
 import (
-    //"github.com/lambda-platform/agent/agentMW"
-    "github.com/lambda-platform/arcGIS/handlers"
-    "github.com/lambda-platform/arcGIS/utils"
-    "github.com/labstack/echo/v4"
-    "github.com/labstack/echo/v4/middleware"
-    vpUtils "github.com/lambda-platform/lambda/config"
+	"github.com/gofiber/fiber/v2"
+	"github.com/lambda-platform/arcGIS/handlers"
+	"github.com/lambda-platform/arcGIS/utils"
+	"github.com/lambda-platform/lambda/agent/agentMW"
+	"github.com/lambda-platform/lambda/config"
+	"github.com/lambda-platform/lambda/dataform"
+	"github.com/lambda-platform/lambda/datagrid"
 )
 
-func Set(e *echo.Echo, GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) {
-	if vpUtils.Config.App.Migrate == "true"{
+func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, GetMODEL func(schema_id string) dataform.Dataform) {
+	if config.Config.App.Migrate == "true" {
 		utils.AutoMigrateSeed()
 	}
 
-	g :=e.Group("/arcgis")
+	g := e.Group("/arcgis")
 
-    g.GET("/fill", func(c echo.Context) error {
-        return handlers.FillArcGISData(c, GetMODEL ,GetGridMODEL)
-    })
-    g.GET("/token", handlers.Token)
+	g.Get("/fill", func(c *fiber.Ctx) error {
+		return handlers.FillArcGISData(c, GetGridMODEL, GetMODEL)
+	})
+	g.Get("/token", agentMW.IsLoggedIn(), handlers.Token)
 
-	g.POST("/form-fields", handlers.FormFields)
-
+	g.Post("/form-fields", handlers.FormFields)
 
 }
 
+func MW(GetGridMODEL func(schema_id string) datagrid.Datagrid, GetMODEL func(schema_id string) dataform.Dataform) fiber.Handler {
 
-func MW(GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) echo.MiddlewareFunc{
-
-	return  middleware.BodyDump(func(c echo.Context, reqBody, resBody []byte){
-		 handlers.BodyDump(c, reqBody, resBody, GetMODEL, GetGridMODEL)
-	})
+	return func(c *fiber.Ctx) error {
+		return handlers.BodyDump(c, GetGridMODEL, GetMODEL)
+	}
 
 }

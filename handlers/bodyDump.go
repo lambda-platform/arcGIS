@@ -1,45 +1,51 @@
 package handlers
 
 import (
-	"encoding/json"
-	"strconv"
-	"github.com/labstack/echo/v4"
+    "encoding/json"
+    "github.com/gofiber/fiber/v2"
+    "github.com/lambda-platform/lambda/dataform"
+    "github.com/lambda-platform/lambda/datagrid"
+    "github.com/lambda-platform/lambda/utils"
+    "strconv"
 )
+
 type crudResponse struct {
-	Data struct{
-		ID        int     `gorm:"column:id;" json:"id"`
-	} `json:"data"`
+    Data struct {
+        ID int `gorm:"column:id;" json:"id"`
+    } `json:"data"`
 }
 
-func BodyDump(c echo.Context, reqBody, resBody []byte, GetMODEL func(schema_id string) (string, interface{}), GetGridMODEL func(schema_id string) (interface{}, interface{}, string, string, interface{}, string)) {
+func BodyDump(c *fiber.Ctx, GetGridMODEL func(schema_id string) datagrid.Datagrid, GetMODEL func(schema_id string) dataform.Dataform) error {
 
-	action := c.Param("action")
-	if(c.Path() == "/lambda/krud/delete/:schemaId/:id"){
-		action = "delete"
-	}
-	if(action == "store" || action == "update" || action == "delete" || action == "edit"){
-		RowId := ""
-		schemaId, _ := strconv.ParseInt(c.Param("schemaId"), 10, 64)
-		if(action == "store"){
+    action := c.Params("action")
+    if c.Path() == "/lambda/krud/delete/:schemaId/:id" {
+        action = "delete"
+    }
+    if action == "store" || action == "update" || action == "delete" || action == "edit" {
 
-			var response crudResponse
-			if err := json.Unmarshal(resBody, &response); err != nil {
-				panic(err)
-			}
-			RowId = strconv.Itoa(response.Data.ID)
+        reqBody := utils.GetBody(c)
+        RowId := ""
+        schemaId, _ := strconv.ParseInt(c.Params("schemaId"), 10, 64)
+        if action == "store" {
 
-		} else {
-			RowId = c.Param("id")
-		}
+            var response crudResponse
 
+            if err := json.Unmarshal(c.Response().Body(), &response); err != nil {
+                panic(err)
+            }
+            RowId = strconv.Itoa(response.Data.ID)
 
-		if(action == "store" || action == "update"){
-			SAVEGIS(reqBody, schemaId, action, RowId, GetMODEL)
-		}else if(action == "delete"){
-			DELTEGIS(reqBody, schemaId, action, RowId, GetGridMODEL)
-		}
+        } else {
+            RowId = c.Params("id")
+        }
 
-	}
-	return
+        if action == "store" || action == "update" {
+            SAVEGIS(reqBody, schemaId, action, RowId, GetMODEL)
+        } else if action == "delete" {
+            DELTEGIS(reqBody, schemaId, action, RowId, GetGridMODEL)
+        }
+
+    }
+    return nil
 
 }
