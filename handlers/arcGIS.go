@@ -367,11 +367,14 @@ func FormFields(c *fiber.Ctx) error {
 
 	json.Unmarshal([]byte(schema.Schema), &schemaData)
 
-	fields := []interface{}{}
+	fields := []map[string]string{}
 
 	for _, field := range schemaData.Schema {
 
-		fields = append(fields, field["model"])
+		fields = append(fields, map[string]string{
+			"value": field["model"],
+			"label": field["model"],
+		})
 	}
 
 	Schemas := []interface{}{}
@@ -713,7 +716,7 @@ type Schema struct {
 	Schema string `json:"schema"`
 }
 type SchemaData struct {
-	Schema []map[string]interface{} `json:"schema"`
+	Schema []map[string]string `json:"schema"`
 }
 type Field struct {
 	Field string                 `json:"field"`

@@ -1,8 +1,9 @@
-package handlers
+package middleware
 
 import (
     "encoding/json"
     "github.com/gofiber/fiber/v2"
+    "github.com/lambda-platform/arcGIS/handlers"
     "github.com/lambda-platform/lambda/dataform"
     "github.com/lambda-platform/lambda/datagrid"
     "github.com/lambda-platform/lambda/utils"
@@ -16,12 +17,15 @@ type crudResponse struct {
 }
 
 func BodyDump(c *fiber.Ctx, GetGridMODEL func(schema_id string) datagrid.Datagrid, GetMODEL func(schema_id string) dataform.Dataform) error {
-
+    if err := c.Next(); err != nil {
+        return err
+    }
     action := c.Params("action")
     if c.Path() == "/lambda/krud/delete/:schemaId/:id" {
         action = "delete"
     }
-    if action == "store" || action == "update" || action == "delete" || action == "edit" {
+
+    if action == "store" || action == "update" || action == "delete" {
 
         reqBody := utils.GetBody(c)
         RowId := ""
@@ -40,12 +44,12 @@ func BodyDump(c *fiber.Ctx, GetGridMODEL func(schema_id string) datagrid.Datagri
         }
 
         if action == "store" || action == "update" {
-            SAVEGIS(reqBody, schemaId, action, RowId, GetMODEL)
+            handlers.SAVEGIS(reqBody, schemaId, action, RowId, GetMODEL)
         } else if action == "delete" {
-            DELTEGIS(reqBody, schemaId, action, RowId, GetGridMODEL)
+            handlers.DELTEGIS(reqBody, schemaId, action, RowId, GetGridMODEL)
         }
 
     }
-    return nil
 
+    return nil
 }

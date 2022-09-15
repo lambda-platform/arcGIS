@@ -3,6 +3,7 @@ package arcGIS
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/lambda-platform/arcGIS/handlers"
+	"github.com/lambda-platform/arcGIS/middleware"
 	"github.com/lambda-platform/arcGIS/utils"
 	"github.com/lambda-platform/lambda/agent/agentMW"
 	"github.com/lambda-platform/lambda/config"
@@ -29,7 +30,7 @@ func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, Ge
 func MW(GetGridMODEL func(schema_id string) datagrid.Datagrid, GetMODEL func(schema_id string) dataform.Dataform) fiber.Handler {
 
 	return func(c *fiber.Ctx) error {
-		return handlers.BodyDump(c, GetGridMODEL, GetMODEL)
+		return middleware.BodyDump(c, GetGridMODEL, GetMODEL)
 	}
 
 }
