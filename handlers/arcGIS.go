@@ -35,7 +35,14 @@ func Token(c *fiber.Ctx) error {
 	if err != nil {
 		fmt.Println("GISDATA.json CONFIG FILE NOT FOUND")
 	}
-	User := agentUtils.AuthUserObject(c)
+	User, err := agentUtils.AuthUserObject(c)
+
+	if err != nil {
+		c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":  err.Error(),
+			"status": false,
+		})
+	}
 	GISDATA := map[string]interface{}{}
 
 	json.Unmarshal(byteValue, &GISDATA)
