@@ -548,7 +548,7 @@ type GISCategory struct {
 	Name       string      `gorm:"column:name" json:"name"`
 	Show       int         `gorm:"column:show" json:"show"`
 	UpdatedAt  *time.Time  `gorm:"column:updated_at" json:"updated_at"`
-	Children   []GISLayers `json:"children"`
+	Children   []GISLayers `gorm:"-" json:"children"`
 }
 
 func (a *GISCategory) TableName() string {
@@ -575,7 +575,7 @@ type GISLayers struct {
 	StyleField   string              `gorm:"column:style_field" json:"style_field"`
 	UserRoles    string              `gorm:"column:user_roles" json:"user_roles"`
 	UpdatedAt    *time.Time          `gorm:"column:updated_at" json:"updated_at"`
-	Legends      []models.GISLegends `json:"legends"`
+	Legends      []models.GISLegends `gorm:"-" json:"legends"`
 }
 
 func (a *GISLayers) TableName() string {
