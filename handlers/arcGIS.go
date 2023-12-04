@@ -60,8 +60,11 @@ func GetArcGISToken() models.ArcGisResponse {
 	password := os.Getenv("ARCGIS_USERPASSWORD")
 
 	url := server + "/arcgis/tokens/generateToken"
-
 	payload := strings.NewReader("username=" + username + "&password=" + password + "&client=referer&referer=" + referer + "&f=json&expiration=120")
+
+	if referer == "requestip" {
+		payload = strings.NewReader("username=" + username + "&password=" + password + "&client=requestip&f=json&expiration=120")
+	}
 
 	req, _ := http.NewRequest("POST", url, payload)
 
