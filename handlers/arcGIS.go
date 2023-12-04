@@ -66,6 +66,8 @@ func GetArcGISToken() models.ArcGisResponse {
 		payload = strings.NewReader("username=" + username + "&password=" + password + "&client=requestip&f=json&expiration=120")
 	}
 
+	fmt.Println(referer)
+
 	req, _ := http.NewRequest("POST", url, payload)
 
 	req.Header.Add("content-type", "application/x-www-form-urlencoded")
