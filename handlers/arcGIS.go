@@ -67,6 +67,7 @@ func GetArcGISToken() models.ArcGisResponse {
 	}
 
 	fmt.Println(referer)
+	fmt.Println(url)
 
 	req, _ := http.NewRequest("POST", url, payload)
 
