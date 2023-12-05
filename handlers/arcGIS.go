@@ -27,7 +27,7 @@ import (
 
 func Token(c *fiber.Ctx) error {
 
-	token := GetArcGISToken()
+	token := GetArcGISToken(c)
 
 	configFile, err := os.Open("public/GIS/GISDATA.json")
 	defer configFile.Close()
@@ -52,7 +52,7 @@ func Token(c *fiber.Ctx) error {
 		"User":    User,
 	})
 }
-func GetArcGISToken() models.ArcGisResponse {
+func GetArcGISToken(c *fiber.Ctx) models.ArcGisResponse {
 
 	referer := os.Getenv("ARCGIS_REFER")
 	server := os.Getenv("ARCGIS_SERVER")
@@ -63,12 +63,9 @@ func GetArcGISToken() models.ArcGisResponse {
 	payload := strings.NewReader("username=" + username + "&password=" + password + "&client=referer&referer=" + referer + "&f=json&expiration=120")
 
 	if referer == "requestip" {
-		payload = strings.NewReader("username=" + username + "&password=" + password + "&client=requestip&f=json&expiration=120")
+		clientIP := c.IP()
+		payload = strings.NewReader("username=" + username + "&password=" + password + "&client=ip&ip=" + clientIP + "&f=json&expiration=120")
 	}
-
-	fmt.Println(referer)
-	fmt.Println(url)
-	fmt.Println(payload)
 
 	req, _ := http.NewRequest("POST", url, payload)
 
