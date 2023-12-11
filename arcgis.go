@@ -1,7 +1,6 @@
 package arcGIS
 
 import (
-	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/lambda-platform/arcGIS/handlers"
 	"github.com/lambda-platform/arcGIS/middleware"
@@ -48,9 +47,6 @@ func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, Ge
 
 		fasthttpadaptor.NewFastHTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 
-			fmt.Println(request.RequestURI)
-			fmt.Println(request.RequestURI)
-			fmt.Println(request.RequestURI)
 			proxy.ServeHTTP(writer, request)
 
 		})(c.Context())
