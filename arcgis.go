@@ -9,6 +9,7 @@ import (
 	"github.com/lambda-platform/lambda/config"
 	"github.com/lambda-platform/lambda/dataform"
 	"github.com/lambda-platform/lambda/datagrid"
+	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 	"net/http"
 	"net/http/httputil"
@@ -36,17 +37,12 @@ func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, Ge
 
 	e.Use("/arcgis", func(c *fiber.Ctx) error {
 		// Create a new request based on the original
-		req := c.Request()
-		url := *req.URI()
+		req := fasthttp.Request{}
+		url := c.Request().URI()
 		url.SetScheme(target.Scheme)
 		url.SetHost(target.Host)
 		req.SetRequestURI(url.String())
 		req.Header.SetHost(target.Host)
-
-		origin := c.Get("Origin")
-		if origin != "" {
-			c.Set("Access-Control-Allow-Origin", origin)
-		}
 
 		fasthttpadaptor.NewFastHTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 
