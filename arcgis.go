@@ -41,9 +41,12 @@ func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, Ge
 		url.SetScheme(target.Scheme)
 		url.SetHost(target.Host)
 		req.SetRequestURI(url.String())
-
-		// Set the Host header
 		req.Header.SetHost(target.Host)
+
+		origin := c.Get("Origin")
+		if origin != "" {
+			c.Set("Access-Control-Allow-Origin", origin)
+		}
 
 		fasthttpadaptor.NewFastHTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 
