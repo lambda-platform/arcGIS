@@ -37,10 +37,7 @@ func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, Ge
 
 	e.Use("/arcgis", func(c *fiber.Ctx) error {
 		// Create a new request based on the original
-		c.Response().Header.Set("Access-Control-Allow-Origin", "*")
-		c.Request().Header.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, X-Requested-With, x-csrf-token, Accept-Language, Content-Length, Authorization, Accept-Encoding, Connection")
-		c.Request().Header.Set("Access-Control-Allow-Methods", "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS")
-
+		origin := c.Get("Origin")
 		req := fasthttp.Request{}
 		url := c.Request().URI()
 		url.SetScheme(target.Scheme)
@@ -49,9 +46,13 @@ func Set(e *fiber.App, GetGridMODEL func(schema_id string) datagrid.Datagrid, Ge
 		req.Header.SetHost(target.Host)
 
 		fasthttpadaptor.NewFastHTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.Header().Set("Access-Control-Allow-Origin", "*")
+
 			writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, X-Requested-With, x-csrf-token, Accept-Language, Content-Length, Authorization, Accept-Encoding, Connection")
 			writer.Header().Set("Access-Control-Allow-Methods", "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS")
+
+			if writer.Header().Get("Access-Control-Allow-Origin") == "" {
+				writer.Header().Set("Access-Control-Allow-Origin", origin)
+			}
 
 			proxy.ServeHTTP(writer, request)
 

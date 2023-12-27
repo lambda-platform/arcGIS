@@ -1,7 +1,5 @@
 .idea
-.vscode
 /.idea
-/.vscode
 yarn.lock
 server_config
 .DS_Store
@@ -23,3 +21,6 @@ lambda/schemas
 lambda/models/form/caller/*
 lambda/models/grid/caller/*
 lambda/db_schema.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
